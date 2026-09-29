@@ -11,7 +11,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License" />
-  <img src="https://img.shields.io/badge/Kotlin-2.0-purple.svg" alt="Kotlin" />
+  <img src="https://img.shields.io/badge/Kotlin-2.2-purple.svg" alt="Kotlin" />
   <img src="https://img.shields.io/badge/Platform-Android%2024%2B-green.svg" alt="Platform" />
   <img src="https://img.shields.io/badge/Runtime-llama.cpp%20%7C%20LiteRT--LM-orange.svg" alt="Runtime" />
   <img src="https://img.shields.io/badge/API-Ollama%20%7C%20OpenAI%20Port%2011434-blueviolet.svg" alt="API" />
@@ -81,7 +81,8 @@ Local LLM Android는 단일 엔진에 종속되지 않고, **llama.cpp**와 **Go
 - **네트워크 보안 및 외부 LAN 접근 제어**:
   - **로컬 루프백(`127.0.0.1`) 격리**: 기기 내부 앱 간 통신을 위한 기본 보안 모드.
   - **외부 네트워크(LAN) 접근 토글**: 토글 활성화 시 `0.0.0.0`으로 바인딩되어 동일 Wi-Fi의 PC, Mac, 개발 환경에서 안드로이드 기기로 직접 API 호출 가능.
-  - **무작위 API 토큰 인증**: 서버 시작 시 생성되는 Bearer API 키를 통해 무단 접근 차단.
+  - **무작위 API 토큰 인증**: 최초 1회 생성되어 기기에 저장되는 Bearer API 키로 무단 접근 차단 (API 화면에서 재발급 가능). TLS 없음: LAN에서는 평문 HTTP이므로 신뢰 네트워크나 SSH 터널 사용.
+  - **포그라운드 서비스**: 앱을 닫아도 서버 유지 (알림의 중지 버튼으로 종료), 프로세스 종료 시 함께 종료.
 - **cURL 호출 예시**:
   ```bash
   curl -X POST http://<기기_IP>:11434/api/generate \
@@ -102,7 +103,7 @@ Local LLM Android는 단일 엔진에 종속되지 않고, **llama.cpp**와 **Go
 2. **오프라인 텍스트 추론 및 로컬 저장**
    - 텍스트 추론 과정의 대화 내역 및 프롬프트가 외부 서버나 클라우드로 일절 전송되지 않습니다.
    - 모든 대화 기록은 로컬 암호화 SQLite Room 데이터베이스에만 저장됩니다.
-   - 참고: 음성 인식(STT)은 **로컬 Whisper STT 엔진**(`LocalSttEngine`)으로 온디바이스 처리되며, 음성 합성(TTS)은 기기 내장 음성 서비스를 사용할 수 있습니다.
+   - 참고: 음성 인식(STT)은 **로컬 Whisper STT 엔진**(`LocalSttEngine`)으로 온디바이스 처리되며, 음성 합성(TTS)은 온디바이스 **supertonic 한국어 신경망 음성**(`LocalTtsEngine`, HF에서 1회 다운로드)을 사용하고 기기 내장 음성 서비스로 폴백합니다.
 
 ---
 

@@ -37,7 +37,7 @@ Audit and fix security/stability issues in the Localllmandroid Android app (`:ap
 ## Still To Do
 
 ### P0 — High Priority
-1. **Legacy key migration (one-time startup)**: Add DAO snapshot query + update method to re-encrypt legacy ciphertext rows with Keystore. Set a prefs flag to mark migration complete. Implement `decryptWithSource` API that detects legacy ciphertext and signals the migration path.
+1. ~~**Legacy key migration (one-time startup)**~~ **DROPPED 2026-09-24:** legacy AES key and decrypt fallback were deliberately deleted (fail-closed, no v1 users exist per line 73/106). There is nothing to migrate; keeping this TODO contradicts the shipped design.
 2. **Verify `files/` backup exclusion**: Confirm `files/` domain exclusion works correctly in backup rules and test restore behavior to ensure models/tokens are not uploaded.
 3. **Localize remaining hardcoded strings**: Move all identified hardcoded strings to `strings.xml` / `strings-ko` with 1:1 mapping.
 
@@ -74,7 +74,7 @@ Audit and fix security/stability issues in the Localllmandroid Android app (`:ap
 - **Threading**: Off-main-thread joins for stable inference; Mutex for conversation mutation serialization.
 
 ## Next Action
-1. Implement one-time startup migration in ViewModel: snapshot legacy rows → decrypt with legacy key → re-encrypt with Keystore → mark migration complete in prefs.
+1. ~~Implement one-time startup migration in ViewModel~~ DROPPED 2026-09-24 (see P0-1 above).
 2. Verify `files/` backup exclusion works in test restore.
 3. Apply localization strings for all P1 hardcoded UI text.
 4. Fix accessibility semantics and touch targets.

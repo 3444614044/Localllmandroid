@@ -32,6 +32,7 @@ import com.localllm.android.voice.TtsEngineMode
 import com.localllm.android.voice.VoiceManager
 import android.net.Uri
 import com.localllm.android.server.OllamaApiServer
+import com.localllm.android.server.ApiServerService
 import com.localllm.android.service.ModelDownloadService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -53,7 +54,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val database = ChatDatabase.getInstance(application)
     private val repository = ChatRepository(database.chatDao())
     private val modelStorageManager = ModelStorageManager(application)
-    val llmEngine = LlmEngine(application)
+    val llmEngine = getApplication<LocalLlmApp>().llmEngine
     private val modelDownloader = ModelDownloader()
     val voiceManager = VoiceManager(application)
     private val mcpClient = McpClient()
@@ -167,10 +168,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _localIpAddress = MutableStateFlow("127.0.0.1")
     val localIpAddress: StateFlow<String> = _localIpAddress.asStateFlow()
 
-    private val _apiServerApiKey = MutableStateFlow(OllamaApiServer.generateSecureApiKey())
+    // Server bearer key: generated once and persisted in the (backup-excluded,
+    // on-device-only) settings prefs. Regenerating per process — the old behavior —
+    // silently broke every IDE/client configuration on each app restart.
+    private val _apiServerApiKey = MutableStateFlow(loadOrCreateApiKey())
     val apiServerApiKey: StateFlow<String> = _apiServerApiKey.asStateFlow()
 
-    private var apiServer: OllamaApiServer? = null
+    private fun loadOrCreateApiKey(): String {
+        settingsPrefs.getString("api_server_key", null)?.takeIf { it.isNotBlank() }?.let { return it }
+        return OllamaApiServer.generateSecureApiKey().also {
+            settingsPrefs.edit().putString("api_server_key", it).apply()
+        }
+    }
+
+    private var apiBinder: ApiServerService.ServerBinder? = null
+    private var apiConnection: android.content.ServiceConnection? = null
     private var modelLoadingJob: Job? = null
 
     // FDM Active Download Status
@@ -1477,47 +1489,79 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun startApiServer() {
-        if (apiServer == null) {
-            apiServer = OllamaApiServer(
-                context = getApplication(),
-                llmEngine = llmEngine,
-                getActiveModel = { _activeModel.value },
-                getAllModels = { _models.value.filter { it.isDownloaded } },
-                getSettings = { _settings.value },
-                initialApiKey = _apiServerApiKey.value
-            )
-        }
-
-        _apiServerApiKey.value = apiServer?.currentApiKey ?: ""
+        ApiServerService.start(getApplication())
         refreshLocalIp()
+        bindApiServer()
+    }
 
-        apiServer?.onRequestProcessed = { count ->
-            _apiRequestCount.value = count
-        }
+    /**
+     * Attaches to the foreground service for live status. Idempotent: safe to
+     * call on every start and on init (re-attach after rotation while the
+     * service kept running).
+     */
+    private fun bindApiServer() {
+        if (apiConnection != null) return
+        val intent = android.content.Intent(getApplication(), ApiServerService::class.java)
+        val conn = object : android.content.ServiceConnection {
+            override fun onServiceConnected(name: android.content.ComponentName?, service: android.os.IBinder?) {
+                val binder = service as? ApiServerService.ServerBinder ?: return
+                apiBinder = binder
+                binder.setListener { snap -> applyServerSnapshot(snap) }
+            }
 
-        apiServer?.start { isRunning, msg ->
-            _isApiModeEnabled.value = isRunning
-            _apiServerStatusMessage.value = msg
-            _engineStatusMessage.value = localizedString(
-                R.string.vm_status_api_server,
-                if (isRunning) localizedString(R.string.vm_state_running) else localizedString(R.string.vm_state_stopped)
-            )
-            _apiRequestCount.value = apiServer?.requestCount ?: 0
-            _apiServerApiKey.value = apiServer?.currentApiKey ?: ""
+            override fun onServiceDisconnected(name: android.content.ComponentName?) {
+                apiBinder = null
+                apiConnection = null
+                _isApiModeEnabled.value = false
+                _apiServerStatusMessage.value = localizedString(R.string.vm_status_api_stopped)
+            }
         }
+        apiConnection = conn
+        try {
+            getApplication<Application>().bindService(intent, conn, android.content.Context.BIND_AUTO_CREATE)
+        } catch (t: Throwable) {
+            android.util.Log.w("MainViewModel", "API service bind failed: ${t.message}")
+            apiConnection = null
+        }
+    }
+
+    private fun unbindApiServer() {
+        try {
+            apiBinder?.setListener(null)
+            apiConnection?.let { getApplication<Application>().unbindService(it) }
+        } catch (_: Throwable) {
+        }
+        apiBinder = null
+        apiConnection = null
+    }
+
+    private fun applyServerSnapshot(snap: ApiServerService.Snapshot) {
+        _isApiModeEnabled.value = snap.running
+        _apiServerStatusMessage.value = snap.message
+        _engineStatusMessage.value = localizedString(
+            R.string.vm_status_api_server,
+            if (snap.running) localizedString(R.string.vm_state_running) else localizedString(R.string.vm_state_stopped)
+        )
+        _apiRequestCount.value = snap.requestCount
+        if (snap.apiKey.isNotBlank()) _apiServerApiKey.value = snap.apiKey
     }
 
     fun regenerateApiKey() {
-        val newKey = apiServer?.regenerateApiKey() ?: OllamaApiServer.generateSecureApiKey()
+        val newKey = OllamaApiServer.generateSecureApiKey()
+        settingsPrefs.edit().putString("api_server_key", newKey).apply()
         _apiServerApiKey.value = newKey
+        try {
+            apiBinder?.reloadApiKey()
+        } catch (t: Throwable) {
+            android.util.Log.w("MainViewModel", "API key reload failed: ${t.message}")
+        }
     }
 
     fun stopApiServer() {
-        apiServer?.stop { isRunning, msg ->
-            _isApiModeEnabled.value = isRunning
-            _apiServerStatusMessage.value = msg
-            _engineStatusMessage.value = localizedString(R.string.vm_status_api_stopped)
-        }
+        ApiServerService.stop(getApplication())
+        _isApiModeEnabled.value = false
+        _apiServerStatusMessage.value = localizedString(R.string.vm_status_api_stopped)
+        _engineStatusMessage.value = localizedString(R.string.vm_status_api_stopped)
     }
 
     fun setApiServerExternalAccess(enabled: Boolean) {
@@ -1564,7 +1608,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         super.onCleared()
         voiceManager.release()
         modelLoadingJob?.cancel()
-        apiServer?.stop { _, _ -> }
+        // Deliberately NOT stopping the API server: the foreground service owns it
+        // so IDE clients keep working after the UI is gone. It stops via the
+        // notification action or stopApiServer(). Just detach the listener.
+        unbindApiServer()
     }
 
     private fun localizedString(@StringRes id: Int, vararg args: Any?): String {

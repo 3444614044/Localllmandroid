@@ -51,6 +51,14 @@ class OllamaApiServer(
         private const val MAX_REQUEST_BODY_BYTES = 16 * 1024 * 1024
         private const val MAX_HEADER_COUNT = 100
         private const val MAX_CONCURRENT_GENERATIONS = 2
+        /**
+         * Accept-loop admission: each connection parks a thread on blocking reads
+         * (up to the 120s socket timeout) on the shared Dispatchers.IO pool
+         * (default 64 threads, shared with the rest of the app). Without a cap,
+         * a few dozen keyless slow connections starve all app IO. Excess sockets
+         * are closed immediately instead of queuing.
+         */
+        private const val MAX_CONNECTIONS = 32
 
         /**
          * Loopback-only CORS allow-list matched on parsed host, never on string prefix.
@@ -103,22 +111,32 @@ class OllamaApiServer(
     }
 
     private var serverSocket: ServerSocket? = null
+    @Volatile
     private var isRunning = false
     private var serverJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.IO)
     private val generationSlots = Semaphore(MAX_CONCURRENT_GENERATIONS)
+    private val connectionSlots = Semaphore(MAX_CONNECTIONS)
 
+    @Volatile
     var currentApiKey: String = initialApiKey
         private set
+
+    /** Adopts a persisted key (service reload path). Blank values are ignored. */
+    fun setApiKey(key: String) {
+        if (key.isNotBlank()) currentApiKey = key
+    }
 
     var boundHost: String = "127.0.0.1"
         private set
 
-    // Request statistics for UI
-    var requestCount: Int = 0
-        private set
+    // Request statistics for UI. Atomic/volatile: updated on IO threads, read on main.
+    private val requestCounter = java.util.concurrent.atomic.AtomicInteger(0)
+    val requestCount: Int get() = requestCounter.get()
+    @Volatile
     var lastClientIp: String? = null
         private set
+    @Volatile
     var lastEndpoint: String? = null
         private set
     var onRequestProcessed: ((Int) -> Unit)? = null
@@ -156,8 +174,20 @@ class OllamaApiServer(
                 while (isRunning) {
                     try {
                         val clientSocket = serverSocket?.accept() ?: break
+                        if (!connectionSlots.tryAcquire()) {
+                            try {
+                                clientSocket.close()
+                            } catch (_: Exception) {
+                            }
+                            Log.w(TAG, "Connection cap ($MAX_CONNECTIONS) hit, socket closed")
+                            continue
+                        }
                         launch {
-                            handleClientSocket(clientSocket)
+                            try {
+                                handleClientSocket(clientSocket)
+                            } finally {
+                                connectionSlots.release()
+                            }
                         }
                     } catch (e: Exception) {
                         if (!isRunning) break
@@ -199,12 +229,7 @@ class OllamaApiServer(
             val method = parts[0].uppercase()
             val uri = parts[1]
 
-            lastClientIp = socket.inetAddress?.hostAddress
-            lastEndpoint = "$method $uri"
-            requestCount++
-            onRequestProcessed?.invoke(requestCount)
-
-            // Read HTTP headers
+            // Read HTTP headers (unavoidable before auth: the key arrives in a header).
             var contentLength = 0
             val headers = mutableMapOf<String, String>()
             var line: String?
@@ -247,6 +272,12 @@ class OllamaApiServer(
                     return
                 }
             }
+
+            // UI statistics update only for authenticated traffic: scanners hitting
+            // the port must not pollute the request count / last-client display.
+            lastClientIp = socket.inetAddress?.hostAddress
+            lastEndpoint = "$method $uri"
+            onRequestProcessed?.invoke(requestCounter.incrementAndGet())
 
             // Read Body if any
             if (contentLength !in 0..MAX_REQUEST_BODY_BYTES) {
@@ -320,13 +351,21 @@ class OllamaApiServer(
         val authHeader = headers["authorization"]
         if (!authHeader.isNullOrBlank()) {
             val token = authHeader.removePrefix("Bearer ").removePrefix("bearer ").trim()
-            if (token == currentApiKey) return true
+            if (constantTimeEquals(token, currentApiKey)) return true
         }
         val xApiKey = headers["x-api-key"]
-        if (!xApiKey.isNullOrBlank() && xApiKey.trim() == currentApiKey) {
+        if (!xApiKey.isNullOrBlank() && constantTimeEquals(xApiKey.trim(), currentApiKey)) {
             return true
         }
         return false
+    }
+
+    private fun constantTimeEquals(a: String, b: String): Boolean {
+        if (a.isEmpty() || b.isEmpty()) return false
+        return java.security.MessageDigest.isEqual(
+            a.toByteArray(StandardCharsets.UTF_8),
+            b.toByteArray(StandardCharsets.UTF_8)
+        )
     }
 
     private fun handleOllamaTags(output: OutputStream, origin: String?) {

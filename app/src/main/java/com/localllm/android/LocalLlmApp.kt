@@ -2,6 +2,7 @@ package com.localllm.android
 
 import android.app.Application
 import android.util.Log
+import com.localllm.android.engine.LlmEngine
 import com.localllm.android.memory.MemoryGuard
 import com.localllm.android.memory.MemoryGuardStore
 import com.localllm.android.memory.MemorySnapshot
@@ -31,6 +32,13 @@ class LocalLlmApp : Application() {
             return report
         }
     }
+
+    /**
+     * The single on-device inference engine. Owned here (not in MainViewModel) so
+     * the API foreground service can borrow the loaded model after the UI is gone.
+     * Duplicating it per consumer would mean duplicate native contexts in RAM.
+     */
+    val llmEngine: LlmEngine by lazy { LlmEngine(this) }
 
     override fun onCreate() {
         super.onCreate()

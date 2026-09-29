@@ -52,6 +52,19 @@ jobs:
       - name: Run unit tests
         run: ./gradlew testDebugUnitTest --stacktrace
 
+      # Release is never built in CI with the real upload key, but the R8
+      # minify + hand-written keep rules + release signing path must still be
+      # exercised: sign with a throwaway keystore so assembleRelease (and its
+      # validateReleaseCredentials gate) actually runs.
+      - name: Build release APK with throwaway key (R8 smoke)
+        run: |
+          keytool -genkeypair -v -keystore /tmp/ci-release.jks \
+            -storepass ci-release -alias upload -keypass ci-release \
+            -keyalg RSA -keysize 2048 -validity 30 \
+            -dname "CN=CI Throwaway,O=CI,C=US"
+          KEYSTORE_PATH=/tmp/ci-release.jks STORE_PASSWORD=ci-release KEY_PASSWORD=ci-release \
+            ./gradlew assembleRelease --stacktrace
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:

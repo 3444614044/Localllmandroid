@@ -2,7 +2,10 @@
 <full-backup-content>
     <!-- Conversations live in an encrypted Room DB; never ship it to the cloud. -->
     <exclude domain="database" path="." />
-    <!-- Encrypted prefs (HF token, active model, UI state) stay on this device. -->
+    <!-- App prefs (HF token, server API key, active model, UI state) are stored
+      in plaintext private prefs and stay on this device. The random server key
+      is high-entropy, but excluding the whole domain keeps every secret
+      (including a user-pasted HF token) out of cloud backups. -->
     <exclude domain="sharedpref" path="." />
     <!--
       files/ holds multi-gigabyte model weights (regenerable by re-download),

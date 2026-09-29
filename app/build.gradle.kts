@@ -153,11 +153,9 @@ dependencies {
   implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(libs.androidx.lifecycle.viewmodel.compose)
-  implementation(libs.androidx.navigation.compose)
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
   implementation(libs.coil.compose)
-  implementation(libs.converter.moshi)
   implementation(libs.llamacpp)
   implementation("com.google.ai.edge.litertlm:litertlm-android:0.17.0") {
     exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib")
@@ -170,10 +168,7 @@ dependencies {
   implementation(project(":engine"))
   // On-device speech recognition (sherpa-onnx, official AAR — no Maven artifact exists)
   implementation(files("libs/sherpa-onnx.aar"))
-  implementation(libs.logging.interceptor)
-  implementation(libs.moshi.kotlin)
   implementation(libs.okhttp)
-  implementation(libs.retrofit)
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)
@@ -191,22 +186,16 @@ dependencies {
   debugImplementation(libs.androidx.compose.ui.test.manifest)
   debugImplementation(libs.androidx.compose.ui.tooling)
   "ksp"(libs.androidx.room.compiler)
-  "ksp"(libs.moshi.kotlin.codegen)
 }
 
 configurations.all {
-  resolutionStrategy {
-    // Pinned with evidence (not a fudge): without this, transitive deps drag
-    // kotlin-stdlib to 2.3.20 (verified via dependencyInsight on
-    // debugRuntimeClasspath) — NEWER than the KGP 2.2.10 compiler. A newer
-    // stdlib under an older compiler is a latent NoSuchMethodError hazard for
-    // those deps, so stdlib/reflect stay lockstep with the compiler.
-    // Revisit in the KGP>=2.4 migration (same ticket as the metadata flag above).
-    force("org.jetbrains.kotlin:kotlin-stdlib:2.2.10")
-    force("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.2.10")
-    force("org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.2.10")
-    force("org.jetbrains.kotlin:kotlin-reflect:2.2.10")
-  }
+  // No stdlib pinning: the stdlib is backward compatible, so letting it float to
+  // what transitive deps resolve is the safe direction. Pinning it DOWN to the
+  // compiler version (the old force block did exactly that) is the dangerous
+  // direction — a library built against a newer stdlib can call APIs the old
+  // stdlib jar does not have (NoSuchMethodError at runtime). If the build ever
+  // goes green only with a pin, pin UP to the resolved version, never down.
+  // (Verified: builds + unit tests green without any force.)
 }
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {

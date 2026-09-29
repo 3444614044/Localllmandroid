@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://github.com/zmxnpquryet-gif/Localllmandroid/actions/workflows/android.yml"><img src="https://github.com/zmxnpquryet-gif/Localllmandroid/actions/workflows/android.yml/badge.svg" alt="CI" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License" /></a>
-  <img src="https://img.shields.io/badge/Kotlin-2.0-purple.svg" alt="Kotlin" />
+  <img src="https://img.shields.io/badge/Kotlin-2.2-purple.svg" alt="Kotlin" />
   <img src="https://img.shields.io/badge/Platform-Android%2024%2B-green.svg" alt="Platform" />
   <img src="https://img.shields.io/badge/Runtime-llama.cpp%20%7C%20LiteRT--LM-orange.svg" alt="Runtime" />
   <img src="https://img.shields.io/badge/API-Ollama%20%7C%20OpenAI%20Port%2011434-blueviolet.svg" alt="API" />
@@ -82,7 +82,8 @@ Turn your Android phone or tablet into an autonomous, on-device AI server access
 - **Flexible Network & Access Controls**:
   - **Local Loopback (`127.0.0.1`) Isolation**: Secure default mode preventing unauthorized external access.
   - **External Network (LAN) Toggle**: Instantly bind to `0.0.0.0` with live socket rebinding, enabling access from any computer or device on your local Wi-Fi / LAN network.
-  - **Bearer Token Authentication**: Enforces secure `sk-local-...` API keys to protect endpoints against unauthorized requests.
+  - **Bearer Token Authentication**: `sk-local-...` API keys, generated once and persisted on-device (regenerable from the API screen). No TLS: on LAN the bearer travels in plaintext HTTP, so use a trusted network or an SSH tunnel.
+  - **Foreground Service**: the server keeps running after the app UI is closed (visible notification with a Stop action); killing the process stops it.
 - **cURL Usage**:
   ```bash
   curl -X POST http://<YOUR_DEVICE_IP>:11434/api/generate \
@@ -93,7 +94,7 @@ Turn your Android phone or tablet into an autonomous, on-device AI server access
 
 ---
 
-## 🔒 Enterprise-Grade Security & Privacy
+## 🔒 Security & Privacy
 
 1. **Hardware-Backed AES-256-GCM Encryption (`ChatCrypto`)**
    - Cryptographic keys are generated and stored in the hardware **Android KeyStore** (Secure Element / TEE).
@@ -103,7 +104,7 @@ Turn your Android phone or tablet into an autonomous, on-device AI server access
 2. **Offline Text Inference & Private Storage**
    - Zero telemetry, zero analytics, zero external API dependencies for text inference.
    - Conversations and prompts remain strictly on your physical device in an encrypted Room SQLite database.
-   - Note: speech-to-text runs through a **local Whisper STT engine** (`LocalSttEngine`); speech synthesis (TTS) may use the device's built-in speech service.
+   - Note: speech-to-text runs through a **local Whisper STT engine** (`LocalSttEngine`); speech synthesis uses the on-device **supertonic Korean neural voice** (`LocalTtsEngine`, downloaded once from Hugging Face) with the device's built-in speech service as fallback.
 
 ---
 

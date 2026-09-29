@@ -39,6 +39,17 @@
             android:name=".service.ModelDownloadService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!--
+          No foregroundServiceType: none of the declared types fits a LAN HTTP
+          inference server, and claiming dataSync/connectedDevice would be
+          dishonest. A typeless foreground service keeps the process alive with
+          a visible notification (with a Stop action); death of the process
+          stops the server (START_NOT_STICKY, no zombie restarts).
+        -->
+        <service
+            android:name=".server.ApiServerService"
+            android:exported="false" />
     </application>
 
 </manifest>

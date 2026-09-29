@@ -103,6 +103,33 @@ class ModelDownloadService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    /**
+     * Android 15+ enforces a ~6h timeout on dataSync foreground services: the
+     * system calls this before stopping us. Finish the bookkeeping (wake lock,
+     * notification, status flow) so a timeout never leaves a stuck "downloading"
+     * card or a held wake lock behind.
+     */
+    override fun onTimeout(startId: Int) {
+        super.onTimeout(startId)
+        Log.w(TAG, "dataSync timeout (startId=$startId): cancelling download")
+        try {
+            downloadJob?.cancel()
+        } catch (_: Throwable) {
+        }
+        downloadJob = null
+        activeDownloadingModel = null
+        try {
+            _currentDownloadStatus.value = null
+        } catch (_: Throwable) {
+        }
+        releaseWakeLock()
+        try {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } catch (_: Throwable) {
+        }
+        stopSelf()
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val model = activeDownloadingModel
         val initialNotification = buildNotification(

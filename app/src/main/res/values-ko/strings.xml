@@ -397,4 +397,9 @@
     <string name="settings_memory_log_title">메모리 가드 로그</string>
     <string name="settings_memory_reset">초기화</string>
     <string name="settings_memory_close">닫기</string>
+
+    <string name="api_server_notif_channel">로컬 LLM API 서버</string>
+    <string name="api_server_notif_title">로컬 LLM API 서버 실행 중</string>
+    <string name="api_server_notif_text">%1$s:%2$d에서 서비스 중 — 앱을 닫아도 유지됩니다</string>
+    <string name="api_server_notif_stop">중지</string>
 </resources>

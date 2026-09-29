@@ -397,4 +397,9 @@
     <string name="settings_memory_log_title">Memory guard log</string>
     <string name="settings_memory_reset">Reset</string>
     <string name="settings_memory_close">Close</string>
+
+    <string name="api_server_notif_channel">Local LLM API server</string>
+    <string name="api_server_notif_title">Local LLM API server running</string>
+    <string name="api_server_notif_text">Serving on %1$s:%2$d — stays up after the app is closed</string>
+    <string name="api_server_notif_stop">Stop</string>
 </resources>
