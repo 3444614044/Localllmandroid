@@ -75,6 +75,34 @@ class ApiServerService : Service() {
         fun stop(context: Context) {
             context.startService(Intent(context, ApiServerService::class.java).setAction(ACTION_STOP))
         }
+
+        internal const val PREFS_NAME = "app_settings_prefs"
+
+        /** Unit-testable prefs helpers: same keys the ViewModel persists. */
+        internal fun loadOrCreateApiKey(prefs: SharedPreferences): String {
+            prefs.getString("api_server_key", null)?.takeIf { it.isNotBlank() }?.let { return it }
+            return OllamaApiServer.generateSecureApiKey().also {
+                prefs.edit().putString("api_server_key", it).apply()
+            }
+        }
+
+        internal fun readServingSettings(prefs: SharedPreferences): GenerationSettings {
+            val runtime = try {
+                val stored = prefs.getString("runtime", null)
+                if (stored.isNullOrBlank()) ModelRuntimeType.LLAMA_CPP else ModelRuntimeType.valueOf(stored)
+            } catch (_: Exception) {
+                ModelRuntimeType.LLAMA_CPP
+            }
+            return GenerationSettings(
+                runtime = runtime,
+                contextWindow = prefs.getInt("context_window", 4096),
+                temperature = prefs.getFloat("temperature", 0.7f),
+                topP = prefs.getFloat("top_p", 0.9f),
+                topK = prefs.getInt("top_k", 40),
+                apiServerBindAddress = prefs.getString("api_server_bind_address", "127.0.0.1") ?: "127.0.0.1",
+                apiServerRequireAuth = prefs.getBoolean("api_server_require_auth", true)
+            )
+        }
     }
 
     private val binder = ServerBinder()
@@ -87,7 +115,7 @@ class ApiServerService : Service() {
     private var stateListener: ((Snapshot) -> Unit)? = null
 
     private val prefs: SharedPreferences by lazy {
-        getSharedPreferences("app_settings_prefs", MODE_PRIVATE)
+        getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
     }
 
     override fun onCreate() {
@@ -102,7 +130,16 @@ class ApiServerService : Service() {
                 stopSelf()
                 return START_NOT_STICKY
             }
-            else -> startServer()
+            else -> try {
+                startServer()
+            } catch (t: Throwable) {
+                Log.e(TAG, "server start failed: ${t.message}")
+                try {
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                } catch (_: Throwable) {
+                }
+                stopSelf()
+            }
         }
         return START_NOT_STICKY
     }
@@ -122,11 +159,8 @@ class ApiServerService : Service() {
         val activeId = storage.getActiveModelId()
         val activeModel = models.firstOrNull { it.id == activeId && it.isDownloaded }
             ?: models.firstOrNull { it.isDownloaded }
-        settings = readServingSettings()
-        val key = prefs.getString("api_server_key", null)?.takeIf { it.isNotBlank() }
-            ?: OllamaApiServer.generateSecureApiKey().also {
-                prefs.edit().putString("api_server_key", it).apply()
-            }
+        settings = readServingSettings(prefs)
+        val key = loadOrCreateApiKey(prefs)
 
         val engine = (application as LocalLlmApp).llmEngine
         val active = activeModel
@@ -144,7 +178,23 @@ class ApiServerService : Service() {
         )
         svc.onRequestProcessed = { pushSnapshot() }
         server = svc
-        startForeground(NOTIF_ID, buildNotification(host))
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                androidx.core.app.ServiceCompat.startForeground(
+                    this,
+                    NOTIF_ID,
+                    buildNotification(host),
+                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                )
+            } else {
+                startForeground(NOTIF_ID, buildNotification(host))
+            }
+        } catch (t: Throwable) {
+            Log.e(TAG, "startForeground failed, aborting server start: ${t.message}")
+            stopServer()
+            stopSelf()
+            return
+        }
         svc.start { _, msg ->
             statusMessage = msg
             pushSnapshot()
@@ -167,8 +217,7 @@ class ApiServerService : Service() {
     }
 
     private fun reloadApiKey() {
-        val key = prefs.getString("api_server_key", null)?.takeIf { it.isNotBlank() } ?: return
-        server?.setApiKey(key)
+        server?.setApiKey(loadOrCreateApiKey(prefs))
         pushSnapshot()
     }
 
@@ -187,24 +236,6 @@ class ApiServerService : Service() {
         } catch (t: Throwable) {
             Log.w(TAG, "listener failed: ${t.message}")
         }
-    }
-
-    private fun readServingSettings(): GenerationSettings {
-        val runtime = try {
-            val stored = prefs.getString("runtime", null)
-            if (stored.isNullOrBlank()) ModelRuntimeType.LLAMA_CPP else ModelRuntimeType.valueOf(stored)
-        } catch (_: Exception) {
-            ModelRuntimeType.LLAMA_CPP
-        }
-        return GenerationSettings(
-            runtime = runtime,
-            contextWindow = prefs.getInt("context_window", 4096),
-            temperature = prefs.getFloat("temperature", 0.7f),
-            topP = prefs.getFloat("top_p", 0.9f),
-            topK = prefs.getInt("top_k", 40),
-            apiServerBindAddress = prefs.getString("api_server_bind_address", "127.0.0.1") ?: "127.0.0.1",
-            apiServerRequireAuth = prefs.getBoolean("api_server_require_auth", true)
-        )
     }
 
     private fun createChannel() {

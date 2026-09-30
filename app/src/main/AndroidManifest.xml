@@ -7,6 +7,7 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -41,15 +42,19 @@
             android:foregroundServiceType="dataSync" />
 
         <!--
-          No foregroundServiceType: none of the declared types fits a LAN HTTP
-          inference server, and claiming dataSync/connectedDevice would be
-          dishonest. A typeless foreground service keeps the process alive with
-          a visible notification (with a Stop action); death of the process
-          stops the server (START_NOT_STICKY, no zombie restarts).
+          specialUse is the honest type here: a LAN HTTP inference server fits none
+          of the declared types, and targetSdk 36 on Android 14+ throws
+          MissingForegroundServiceTypeException for a typeless startForeground.
+          The subtype property documents the use for reviewers and Play policy.
         -->
         <service
             android:name=".server.ApiServerService"
-            android:exported="false" />
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="On-device LLM inference server (Ollama/OpenAI-compatible HTTP on port 11434) kept alive after the UI closes." />
+        </service>
     </application>
 
 </manifest>

@@ -59,6 +59,13 @@ class OllamaApiServer(
          * are closed immediately instead of queuing.
          */
         private const val MAX_CONNECTIONS = 32
+        /**
+         * Handshake-phase admission: keyless slow connections must never exhaust
+         * the total cap and lock out legitimate traffic for the whole socket
+         * timeout. Only 8 sockets may sit in request-line/header/auth at once;
+         * past that the socket is closed immediately.
+         */
+        private const val MAX_PREAUTH_CONNECTIONS = 8
 
         /**
          * Loopback-only CORS allow-list matched on parsed host, never on string prefix.
@@ -108,6 +115,28 @@ class OllamaApiServer(
             random.nextBytes(bytes)
             return "sk-local-" + android.util.Base64.encodeToString(bytes, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING)
         }
+
+        /** Instance-independent for unit tests (no server instance needed). */
+        internal fun checkAuthorization(headers: Map<String, String>, expectedKey: String): Boolean {
+            val authHeader = headers["authorization"]
+            if (!authHeader.isNullOrBlank()) {
+                val token = authHeader.removePrefix("Bearer ").removePrefix("bearer ").trim()
+                if (constantTimeEquals(token, expectedKey)) return true
+            }
+            val xApiKey = headers["x-api-key"]
+            if (!xApiKey.isNullOrBlank() && constantTimeEquals(xApiKey.trim(), expectedKey)) {
+                return true
+            }
+            return false
+        }
+
+        internal fun constantTimeEquals(a: String, b: String): Boolean {
+            if (a.isEmpty() || b.isEmpty()) return false
+            return java.security.MessageDigest.isEqual(
+                a.toByteArray(StandardCharsets.UTF_8),
+                b.toByteArray(StandardCharsets.UTF_8)
+            )
+        }
     }
 
     private var serverSocket: ServerSocket? = null
@@ -117,6 +146,7 @@ class OllamaApiServer(
     private val scope = CoroutineScope(Dispatchers.IO)
     private val generationSlots = Semaphore(MAX_CONCURRENT_GENERATIONS)
     private val connectionSlots = Semaphore(MAX_CONNECTIONS)
+    private val preAuthSlots = Semaphore(MAX_PREAUTH_CONNECTIONS)
 
     @Volatile
     var currentApiKey: String = initialApiKey
@@ -217,8 +247,20 @@ class OllamaApiServer(
     }
 
     private suspend fun handleClientSocket(socket: Socket) {
+        if (!preAuthSlots.tryAcquire()) {
+            try {
+                socket.close()
+            } catch (_: Exception) {
+            }
+            return
+        }
+        var authed = false
         try {
-            socket.soTimeout = 120000
+            // 30s, not 120s: this timeout only guards request reads (headers +
+            // up to 16MB body). Generation streams for minutes but that is server
+            // compute + writes, never a pending read — so a short read timeout
+            // cannot cut a legitimate slow inference, it only bounds slowloris.
+            socket.soTimeout = 30000
             val input = socket.getInputStream().buffered()
             val output = socket.getOutputStream()
 
@@ -272,6 +314,8 @@ class OllamaApiServer(
                     return
                 }
             }
+            authed = true
+            preAuthSlots.release()
 
             // UI statistics update only for authenticated traffic: scanners hitting
             // the port must not pollute the request count / last-client display.
@@ -341,32 +385,15 @@ class OllamaApiServer(
         } catch (e: Exception) {
             Log.e(TAG, "Error handling client request", e)
         } finally {
+            if (!authed) preAuthSlots.release()
             try {
                 socket.close()
             } catch (_: Exception) {}
         }
     }
 
-    private fun checkAuthorization(headers: Map<String, String>): Boolean {
-        val authHeader = headers["authorization"]
-        if (!authHeader.isNullOrBlank()) {
-            val token = authHeader.removePrefix("Bearer ").removePrefix("bearer ").trim()
-            if (constantTimeEquals(token, currentApiKey)) return true
-        }
-        val xApiKey = headers["x-api-key"]
-        if (!xApiKey.isNullOrBlank() && constantTimeEquals(xApiKey.trim(), currentApiKey)) {
-            return true
-        }
-        return false
-    }
-
-    private fun constantTimeEquals(a: String, b: String): Boolean {
-        if (a.isEmpty() || b.isEmpty()) return false
-        return java.security.MessageDigest.isEqual(
-            a.toByteArray(StandardCharsets.UTF_8),
-            b.toByteArray(StandardCharsets.UTF_8)
-        )
-    }
+    private fun checkAuthorization(headers: Map<String, String>): Boolean =
+        checkAuthorization(headers, currentApiKey)
 
     private fun handleOllamaTags(output: OutputStream, origin: String?) {
         val models = getAllModels()
