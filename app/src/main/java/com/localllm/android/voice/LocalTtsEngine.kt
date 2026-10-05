@@ -1,5 +1,8 @@
 package com.localllm.android.voice
 
+import com.localllm.android.R
+import com.localllm.android.i18n.AppStrings
+
 import android.content.Context
 import android.util.Log
 import com.k2fsa.sherpa.onnx.GenerationConfig
@@ -130,7 +133,7 @@ class LocalTtsEngine(private val context: Context) {
             true
         } catch (e: Exception) {
             Log.w(TAG, "TTS model download failed", e)
-            _modelState.value = ModelState.Failed(e.localizedMessage ?: "다운로드 실패")
+            _modelState.value = ModelState.Failed(e.localizedMessage ?: AppStrings.get(R.string.stt_dl_fail))
             false
         }
     }

@@ -1,5 +1,8 @@
 ﻿package com.localllm.android.engine
 
+import com.localllm.android.R
+import com.localllm.android.i18n.AppStrings
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -78,7 +81,7 @@ class McpClient(client: OkHttpClient? = null) {
         disconnect()
         val clean = url.trim()
         if (clean.isBlank()) {
-            return@withContext McpConnectionResult(false, "Unknown", emptyList(), 0, "MCP URL을 입력해 주세요.")
+            return@withContext McpConnectionResult(false, "Unknown", emptyList(), 0, AppStrings.get(R.string.mcp_enter_url))
         }
         val parsed = try {
             clean.toHttpUrlOrNull()
@@ -86,7 +89,7 @@ class McpClient(client: OkHttpClient? = null) {
             null
         }
         if (parsed == null || (parsed.scheme != "http" && parsed.scheme != "https")) {
-            return@withContext McpConnectionResult(false, "Unknown", emptyList(), 0, "http(s) 형식의 MCP URL이 아닙니다.")
+            return@withContext McpConnectionResult(false, "Unknown", emptyList(), 0, AppStrings.get(R.string.mcp_bad_url))
         }
 
         val start = System.currentTimeMillis()
@@ -110,10 +113,10 @@ class McpClient(client: OkHttpClient? = null) {
                 val tools = fetchTools(clean)
                 cachedTools = tools
                 serverName = name
-                McpConnectionResult(true, name, tools, elapsed(), "연결 성공: ${tools.size}개 도구")
+                McpConnectionResult(true, name, tools, elapsed(), AppStrings.get(R.string.mcp_connected, tools.size))
             } catch (e: Exception) {
                 disconnect()
-                McpConnectionResult(false, name, emptyList(), elapsed(), "도구 목록 조회 실패: ${e.message}")
+                McpConnectionResult(false, name, emptyList(), elapsed(), AppStrings.get(R.string.mcp_tools_fail, e.message))
             }
         }
 
@@ -128,24 +131,24 @@ class McpClient(client: OkHttpClient? = null) {
                     val tools = fetchTools(sseEndpoint)
                     cachedTools = tools
                     serverName = name
-                    McpConnectionResult(true, name, tools, elapsed(), "연결 성공(SSE): ${tools.size}개 도구")
+                    McpConnectionResult(true, name, tools, elapsed(), AppStrings.get(R.string.mcp_connected_sse, tools.size))
                 } catch (e: Exception) {
                     disconnect()
-                    McpConnectionResult(false, name, emptyList(), elapsed(), "도구 목록 조회 실패: ${e.message}")
+                    McpConnectionResult(false, name, emptyList(), elapsed(), AppStrings.get(R.string.mcp_tools_fail, e.message))
                 }
             }
         }
 
-        val hint = if (direct != null) "HTTP ${direct.code}" else "연결 실패"
+        val hint = if (direct != null) "HTTP ${direct.code}" else AppStrings.get(R.string.mcp_conn_fail)
         McpConnectionResult(
             false, parsed.host, emptyList(), elapsed(),
-            "MCP 핸드셰이크 실패 ($hint). Streamable HTTP 또는 SSE 방식의 MCP 서버 URL인지 확인하세요."
+            AppStrings.get(R.string.mcp_handshake, hint)
         )
     }
 
     suspend fun callTool(name: String, argumentsJson: String = "{}"): McpToolCallResult = withContext(Dispatchers.IO) {
         val endpoint = messageEndpoint
-            ?: return@withContext McpToolCallResult(false, "", "MCP 서버에 연결되어 있지 않습니다. 먼저 연결하세요.")
+            ?: return@withContext McpToolCallResult(false, "", AppStrings.get(R.string.mcp_not_connected))
         val args = try {
             JSONObject(argumentsJson.ifBlank { "{}" })
         } catch (_: Exception) {
@@ -153,15 +156,15 @@ class McpClient(client: OkHttpClient? = null) {
         }
         val payload = rpcRequest("tools/call", JSONObject().put("name", name).put("arguments", args))
         val resp = postJson(endpoint, payload, sessionId)
-            ?: return@withContext McpToolCallResult(false, "", "도구 호출 요청 실패 (네트워크 오류).")
+            ?: return@withContext McpToolCallResult(false, "", AppStrings.get(R.string.mcp_call_net))
         if (resp.code !in 200..299) {
-            return@withContext McpToolCallResult(false, "", "도구 호출 실패 (HTTP ${resp.code}).")
+            return@withContext McpToolCallResult(false, "", AppStrings.get(R.string.mcp_call_http, resp.code))
         }
         val body = resp.bodyJson
-            ?: return@withContext McpToolCallResult(false, "", "도구 호출 응답을 해석하지 못했습니다.")
+            ?: return@withContext McpToolCallResult(false, "", AppStrings.get(R.string.mcp_call_parse))
         if (body.has("error") && !body.isNull("error")) {
-            val msg = body.optJSONObject("error")?.optString("message") ?: "알 수 없는 오류"
-            return@withContext McpToolCallResult(false, "", "도구 오류: $msg")
+            val msg = body.optJSONObject("error")?.optString("message") ?: AppStrings.get(R.string.eng_unknown_err)
+            return@withContext McpToolCallResult(false, "", AppStrings.get(R.string.mcp_tool_error, msg))
         }
         val result = body.optJSONObject("result")
         val texts = mutableListOf<String>()
@@ -176,7 +179,7 @@ class McpClient(client: OkHttpClient? = null) {
         McpToolCallResult(
             !failed,
             texts.joinToString("\n"),
-            if (texts.isEmpty()) "도구가 빈 결과를 반환했습니다." else "도구 실행 성공"
+            if (texts.isEmpty()) AppStrings.get(R.string.mcp_empty) else AppStrings.get(R.string.mcp_exec_ok)
         )
     }
 
@@ -187,16 +190,16 @@ class McpClient(client: OkHttpClient? = null) {
         /** Renders the *actually connected* tools for prompt injection. Null when none. */
         fun buildToolsContext(server: String, tools: List<McpTool>): String? {
             if (tools.isEmpty()) return null
-            val sb = StringBuilder("MCP 서버 \"").append(server).append("\" 제공 도구 (실시간 조회됨):")
+            val sb = StringBuilder(AppStrings.get(R.string.mcp_sb_head)).append(server).append(AppStrings.get(R.string.mcp_sb_tail))
             for (t in tools) {
                 val schema = if (t.parameters.length > MAX_TOOL_SCHEMA_CHARS) {
-                    t.parameters.take(MAX_TOOL_SCHEMA_CHARS) + "…(생략)"
+                    t.parameters.take(MAX_TOOL_SCHEMA_CHARS) + AppStrings.get(R.string.mcp_schema_omitted)
                 } else {
                     t.parameters
                 }
-                val line = "\n- ${t.name}: ${t.description} 입력: $schema"
+                val line = "\n" + AppStrings.get(R.string.mcp_tool_line, t.name, t.description, schema)
                 if (sb.length + line.length > MAX_TOOLS_CONTEXT_CHARS) {
-                    sb.append("\n…(나머지 도구 생략)")
+                    sb.append("\n" + AppStrings.get(R.string.mcp_more_omitted))
                     break
                 }
                 sb.append(line)
@@ -283,12 +286,12 @@ class McpClient(client: OkHttpClient? = null) {
 
     private fun fetchTools(endpoint: String): List<McpTool> {
         val first = postJson(endpoint, rpcRequest("tools/list", JSONObject()), sessionId)
-            ?: throw IllegalStateException("도구 목록 요청 실패 (네트워크 오류).")
-        if (first.code !in 200..299) throw IllegalStateException("도구 목록 조회 실패 (HTTP ${first.code}).")
-        val body = first.bodyJson ?: throw IllegalStateException("도구 목록 응답을 해석하지 못했습니다.")
+            ?: throw IllegalStateException(AppStrings.get(R.string.mcp_list_net))
+        if (first.code !in 200..299) throw IllegalStateException(AppStrings.get(R.string.mcp_list_http, first.code))
+        val body = first.bodyJson ?: throw IllegalStateException(AppStrings.get(R.string.mcp_list_parse))
         if (body.has("error") && !body.isNull("error")) {
-            val msg = body.optJSONObject("error")?.optString("message") ?: "알 수 없는 오류"
-            throw IllegalStateException("서버 오류: $msg")
+            val msg = body.optJSONObject("error")?.optString("message") ?: AppStrings.get(R.string.eng_unknown_err)
+            throw IllegalStateException(AppStrings.get(R.string.mcp_server_error, msg))
         }
         val arr = body.optJSONObject("result")?.optJSONArray("tools") ?: JSONArray()
         val out = mutableListOf<McpTool>()

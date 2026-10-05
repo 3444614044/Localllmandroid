@@ -42,6 +42,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import com.localllm.android.R
+import com.localllm.android.i18n.SdEngineText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -160,7 +161,7 @@ fun SettingsScreen(
                 if (settings.runtime == ModelRuntimeType.SD_ENGINE) {
                     Spacer(modifier = Modifier.height(8.dp))
                     GText(
-                        text = com.localllm.engine.SDEngine.advisoryText(),
+                        text = SdEngineText.advisoryText(),
                         style = GlassTheme.type.bodySmall,
                         color = GlassTheme.colors.error
                     )
@@ -491,6 +492,36 @@ fun SettingsScreen(
                     fontSize = 12.sp,
                     color = if (settings.hfToken.isNotBlank()) GlassTheme.colors.primary else GlassTheme.colors.onSurfaceVariant
                 )
+            }
+
+            // 6.6 Model Download Source (Hugging Face official / hf-mirror)
+            SettingsCard(
+                title = stringResource(R.string.settings_hf_source_title),
+                icon = GIcons.CloudDownload
+            ) {
+                GText(
+                    text = stringResource(R.string.settings_hf_source_desc),
+                    style = GlassTheme.type.bodySmall,
+                    color = GlassTheme.colors.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val hfSources = listOf(
+                        "official" to stringResource(R.string.settings_hf_source_official),
+                        "mirror" to stringResource(R.string.settings_hf_source_mirror)
+                    )
+                    hfSources.forEach { (code, label) ->
+                        GFilterChip(
+                            selected = settings.hfSource == code,
+                            onClick = { viewModel.setHfSource(code) },
+                            label = { GText(label) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
             }
 
             // 7. Theme & Dark/Light Mode Personalization

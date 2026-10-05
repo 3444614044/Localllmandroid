@@ -1,5 +1,8 @@
 package com.localllm.android.server
 
+import com.localllm.android.R
+import com.localllm.android.i18n.AppStrings
+
 import android.content.Context
 import android.util.Log
 import com.localllm.android.engine.LlmEngine
@@ -182,7 +185,7 @@ class OllamaApiServer(
 
     fun start(onStatusChange: (Boolean, String?) -> Unit) {
         if (isRunning) {
-            onStatusChange(true, "서버가 이미 포트 $DEFAULT_PORT 에서 실행 중입니다.")
+            onStatusChange(true, AppStrings.get(R.string.aps_already, DEFAULT_PORT))
             return
         }
 
@@ -197,8 +200,8 @@ class OllamaApiServer(
             }
             isRunning = true
 
-            val hostLabel = if (boundHost == "127.0.0.1") "로컬 루프백(127.0.0.1)" else "전체 인터페이스($boundHost)"
-            onStatusChange(true, "보안 API 서버가 $hostLabel 포트 $DEFAULT_PORT 에서 시작되었습니다.")
+            val hostLabel = if (boundHost == "127.0.0.1") AppStrings.get(R.string.aps_loopback) else AppStrings.get(R.string.aps_alliface, boundHost)
+            onStatusChange(true, AppStrings.get(R.string.aps_started, hostLabel, DEFAULT_PORT))
 
             serverJob = scope.launch {
                 while (isRunning) {
@@ -228,7 +231,7 @@ class OllamaApiServer(
         } catch (e: Exception) {
             isRunning = false
             Log.e(TAG, "Failed to start API server on $boundHost:$DEFAULT_PORT", e)
-            onStatusChange(false, "서버 시작 실패 ($boundHost:$DEFAULT_PORT): ${e.localizedMessage}")
+            onStatusChange(false, AppStrings.get(R.string.aps_start_fail, boundHost, DEFAULT_PORT, e.localizedMessage))
         }
     }
 
@@ -239,10 +242,10 @@ class OllamaApiServer(
             serverSocket = null
             serverJob?.cancel()
             serverJob = null
-            onStatusChange(false, "API 서버가 중지되었습니다.")
+            onStatusChange(false, AppStrings.get(R.string.aps_stopped))
         } catch (e: Exception) {
             Log.e(TAG, "Failed to stop server", e)
-            onStatusChange(false, "서버 중지 중 오류: ${e.localizedMessage}")
+            onStatusChange(false, AppStrings.get(R.string.aps_stop_err, e.localizedMessage))
         }
     }
 
@@ -308,7 +311,7 @@ class OllamaApiServer(
                 val isAuthorized = checkAuthorization(headers)
                 if (!isAuthorized) {
                     val unauthorizedJson = JSONObject().apply {
-                        put("error", "인증 실패: 유효한 API 키가 필요합니다. 'Authorization: Bearer <api_key>' 또는 'X-API-Key' 헤더를 전달하세요.")
+                        put("error", "Authentication failed: a valid API key is required. Pass the 'Authorization: Bearer <api_key>' or 'X-API-Key' header.")
                     }.toString()
                     sendResponse(output, 401, "Unauthorized", "application/json", unauthorizedJson, clientOrigin)
                     return
@@ -549,7 +552,7 @@ class OllamaApiServer(
         }
 
         if (!llmEngine.isModelReady()) {
-            val err = JSONObject().put("error", "선택되거나 로드된 로컬 모델이 없습니다. 앱에서 모델을 먼저 로드하세요.").toString()
+            val err = JSONObject().put("error", "No local model is selected or loaded. Load a model in the app first.").toString()
             sendResponse(output, 503, "Service Unavailable", "application/json", err, origin)
             return
         }
@@ -667,7 +670,7 @@ class OllamaApiServer(
         val modelName = currentModel?.name ?: "local-model"
 
         if (!llmEngine.isModelReady()) {
-            val err = JSONObject().put("error", "선택되거나 로드된 로컬 모델이 없습니다. 앱에서 모델을 먼저 로드하세요.").toString()
+            val err = JSONObject().put("error", "No local model is selected or loaded. Load a model in the app first.").toString()
             sendResponse(output, 503, "Service Unavailable", "application/json", err, origin)
             return
         }
@@ -794,7 +797,7 @@ class OllamaApiServer(
         val chatId = "chatcmpl-${System.currentTimeMillis()}"
 
         if (!llmEngine.isModelReady()) {
-            val err = JSONObject().put("error", JSONObject().put("message", "선택되거나 로드된 로컬 모델이 없습니다.")).toString()
+            val err = JSONObject().put("error", JSONObject().put("message", "No local model is selected or loaded.")).toString()
             sendResponse(output, 503, "Service Unavailable", "application/json", err, origin)
             return
         }

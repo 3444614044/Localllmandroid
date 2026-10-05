@@ -621,7 +621,7 @@ private fun ModelBundleCardItem(
         Spacer(modifier = Modifier.height(8.dp))
 
         GText(
-            text = model.description,
+            text = modelDescriptionText(model),
             style = GlassTheme.type.bodySmall,
             color = GlassTheme.colors.onSurfaceVariant
         )
@@ -999,7 +999,7 @@ private fun FdmAddBundleDialog(
                     }
                     GOutlineButton(
                         onClick = {
-                            modelNameInput = "Gemma 3 1B (LiteRT 통합 비전)"
+                            modelNameInput = stringResource(R.string.mm_default_name)
                             runtimeChoice = ModelRuntimeType.LITE_RT
                             mainUrlInput = "https://huggingface.co/lotapa/gemma3-1b-it-int4.litertlm/resolve/main/gemma3-1b-it-int4.litertlm"
                             customFileNameInput = "gemma3-1b-it-int4.litertlm"
@@ -1372,4 +1372,25 @@ private fun queryFileName(context: Context, uri: Uri): String? {
         }
     }
     return result
+}
+
+/** 目录模型卡片描述按当前语言解析；自定义/导入模型回退到数据字段原文。 */
+private val MODEL_DESC_RES: Map<String, Int> = mapOf(
+    "smollm2-360m-instruct-gguf" to R.string.model_desc_smollm2_360m,
+    "qwen2.5-0.5b-instruct-gguf" to R.string.model_desc_qwen05b,
+    "llama-3.2-1b-instruct-gguf" to R.string.model_desc_llama1b,
+    "deepseek-r1-distill-qwen-1.5b-gguf" to R.string.model_desc_ds_r1_15b,
+    "qwen2.5-1.5b-instruct-gguf" to R.string.model_desc_qwen15b,
+    "smollm2-1.7b-instruct-gguf" to R.string.model_desc_smollm2_17b,
+    "gemma-2-2b-it-gguf" to R.string.model_desc_gemma2_2b,
+    "qwen2-vl-2b-instruct-gguf" to R.string.model_desc_qwen2vl,
+    "qwen2.5-coder-1.5b-litert" to R.string.model_desc_coder_lr,
+    "gemma-3-1b-it-litert" to R.string.model_desc_gemma3_lr,
+    "functiongemma-mobile-actions-litert" to R.string.model_desc_funcgemma_lr
+)
+
+@Composable
+private fun modelDescriptionText(model: LlmModel): String {
+    val resId = MODEL_DESC_RES[model.id]
+    return if (resId != null) stringResource(resId) else model.description
 }

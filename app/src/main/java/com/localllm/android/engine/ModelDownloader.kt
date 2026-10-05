@@ -1,5 +1,8 @@
 ﻿package com.localllm.android.engine
 
+import com.localllm.android.R
+import com.localllm.android.i18n.AppStrings
+
 import android.util.Log
 import com.localllm.android.model.LlmModel
 import kotlinx.coroutines.CancellationException
@@ -29,10 +32,10 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.max
 
 enum class FdmComponentType(val label: String, val badge: String) {
-    MAIN_MODEL("메인 가중치 모델", "MAIN"),
-    VISION_TOWER("비전 타워 (mmproj)", "VISION"),
-    MTP_DRAFTER("MTP 투기적 드래프터", "MTP"),
-    TEMPLATE("LiteRT 프롬프트 템플릿", "TEMPLATE")
+    MAIN_MODEL(AppStrings.get(R.string.dl_enum_main), "MAIN"),
+    VISION_TOWER(AppStrings.get(R.string.dl_enum_vision), "VISION"),
+    MTP_DRAFTER(AppStrings.get(R.string.dl_enum_mtp), "MTP"),
+    TEMPLATE(AppStrings.get(R.string.dl_enum_template), "TEMPLATE")
 }
 
 data class FdmComponentStatus(
@@ -117,7 +120,8 @@ class ModelDownloader(client: OkHttpClient? = null) {
             val isHfInfra = host == "huggingface.co" ||
                     host.endsWith(".huggingface.co") ||
                     host == "hf.co" ||
-                    host.endsWith(".hf.co")
+                    host.endsWith(".hf.co") ||
+                    host == HfSource.MIRROR_HOST
             if (!isHfInfra) return false
             // Redirect targets / CDN endpoints embed their own pre-signed auth.
             // Never forward the user's token there.
@@ -175,7 +179,7 @@ class ModelDownloader(client: OkHttpClient? = null) {
         tasks.add(
             DownloadTask(
                 type = FdmComponentType.MAIN_MODEL,
-                title = "메인 가중치",
+                title = AppStrings.get(R.string.dl_title_main),
                 targetFile = mainFile,
                 url = model.mainModelUrl.ifBlank {
                     if (model.repoId.isNotBlank()) "https://huggingface.co/${model.repoId}/resolve/main/${model.fileName}" else ""
@@ -188,7 +192,7 @@ class ModelDownloader(client: OkHttpClient? = null) {
             tasks.add(
                 DownloadTask(
                     type = FdmComponentType.VISION_TOWER,
-                    title = "비전 타워 (mmproj)",
+                    title = AppStrings.get(R.string.dl_title_vision),
                     targetFile = visionFile,
                     url = model.visionTowerUrl,
                     fallbackEstimatedSize = 350_000_000L
@@ -200,7 +204,7 @@ class ModelDownloader(client: OkHttpClient? = null) {
             tasks.add(
                 DownloadTask(
                     type = FdmComponentType.MTP_DRAFTER,
-                    title = "MTP 2x 투기적 드래프터",
+                    title = AppStrings.get(R.string.dl_title_mtp),
                     targetFile = mtpFile,
                     url = model.mtpDrafterUrl,
                     fallbackEstimatedSize = 400_000_000L
@@ -212,7 +216,7 @@ class ModelDownloader(client: OkHttpClient? = null) {
             tasks.add(
                 DownloadTask(
                     type = FdmComponentType.TEMPLATE,
-                    title = "프롬프트 템플릿",
+                    title = AppStrings.get(R.string.dl_title_template),
                     targetFile = templateFile,
                     url = model.templateFileUrl,
                     fallbackEstimatedSize = 50_000L
@@ -255,7 +259,7 @@ class ModelDownloader(client: OkHttpClient? = null) {
                         progress = 1.0f,
                         downloadedBytes = existingSize,
                         totalBytes = existingSize,
-                        speedText = "완료",
+                        speedText = AppStrings.get(R.string.dl_done),
                         isCompleted = true
                     )
                     continue
@@ -295,7 +299,7 @@ class ModelDownloader(client: OkHttpClient? = null) {
                             totalBytes = overallTotal,
                             speedText = speedText,
                             etaSeconds = etaSec,
-                            activeComponentName = "${task.title} 다운로드 중 (${targetFile.name})",
+                            activeComponentName = AppStrings.get(R.string.dl_downloading_comp, task.title, targetFile.name),
                             mainProgress = componentStatusMap[FdmComponentType.MAIN_MODEL]?.progress ?: 0f,
                             visionProgress = componentStatusMap[FdmComponentType.VISION_TOWER]?.progress ?: 0f,
                             mtpProgress = componentStatusMap[FdmComponentType.MTP_DRAFTER]?.progress ?: 0f,
@@ -313,7 +317,7 @@ class ModelDownloader(client: OkHttpClient? = null) {
                             progress = 0f,
                             downloadedBytes = bundleDownloadedBytes,
                             totalBytes = totalBundleBytes,
-                            speedText = "오류",
+                            speedText = AppStrings.get(R.string.dl_error),
                             errorMessage = err,
                             isCompleted = false
                         )
@@ -334,11 +338,11 @@ class ModelDownloader(client: OkHttpClient? = null) {
                     val preview = readTextPreview(targetFile)
                     val errorReason = when {
                         preview.contains("Unauthorized", ignoreCase = true) || preview.contains("401", ignoreCase = true) ->
-                            "다운로드 실패: Hugging Face 인증 필요 (401 Unauthorized). 설정에서 유효한 HF 토큰을 입력해 주세요."
+                            AppStrings.get(R.string.dl_fail_401)
                         preview.startsWith("<!DOCTYPE", ignoreCase = true) || preview.startsWith("<html", ignoreCase = true) ->
-                            "다운로드 실패: 모델 파일 대신 HTML 웹페이지가 다운로드되었습니다. 링크 및 권한을 확인하세요."
+                            AppStrings.get(R.string.dl_fail_html)
                         else ->
-                            "다운로드 완료 후 파일 검증 실패: 유효한 GGUF 파일 형식이 아닙니다."
+                            AppStrings.get(R.string.dl_verify_gguf)
                     }
                     Log.e(tag, "[$componentType] Validation failed for ${targetFile.name}: $errorReason")
                     targetFile.delete()
@@ -348,7 +352,7 @@ class ModelDownloader(client: OkHttpClient? = null) {
                             progress = 0f,
                             downloadedBytes = bundleDownloadedBytes,
                             totalBytes = totalBundleBytes,
-                            speedText = "오류",
+                            speedText = AppStrings.get(R.string.dl_error),
                             errorMessage = errorReason,
                             isCompleted = false
                         )
@@ -360,13 +364,13 @@ class ModelDownloader(client: OkHttpClient? = null) {
                     val preview = readTextPreview(targetFile)
                     val errorReason = when {
                         preview.contains("Unauthorized", ignoreCase = true) || preview.contains("401", ignoreCase = true) ->
-                            "다운로드 실패: Hugging Face 인증 필요 (401 Unauthorized). 설정에서 유효한 HF 토큰을 입력해 주세요."
+                            AppStrings.get(R.string.dl_fail_401)
                         preview.startsWith("<!DOCTYPE", ignoreCase = true) || preview.startsWith("<html", ignoreCase = true) ->
-                            "다운로드 실패: 모델 파일 대신 HTML 웹페이지가 다운로드되었습니다. 링크 및 권한을 확인하세요."
+                            AppStrings.get(R.string.dl_fail_html)
                         targetFile.length() < 1024 * 1024L ->
-                            "다운로드 실패: 파일 크기가 너무 작습니다 (${targetFile.length()} bytes). 다운로드 링크를 확인하세요."
+                            AppStrings.get(R.string.dl_fail_small, targetFile.length())
                         else ->
-                            "다운로드 완료 후 파일 검증 실패: 유효한 LiteRT 모델 바이너리가 아닙니다."
+                            AppStrings.get(R.string.dl_verify_litert)
                     }
                     Log.e(tag, "[$componentType] LiteRT validation failed for ${targetFile.name}: $errorReason")
                     targetFile.delete()
@@ -376,7 +380,7 @@ class ModelDownloader(client: OkHttpClient? = null) {
                             progress = 0f,
                             downloadedBytes = bundleDownloadedBytes,
                             totalBytes = totalBundleBytes,
-                            speedText = "오류",
+                            speedText = AppStrings.get(R.string.dl_error),
                             errorMessage = errorReason,
                             isCompleted = false
                         )
@@ -391,7 +395,7 @@ class ModelDownloader(client: OkHttpClient? = null) {
                 progress = 1.0f,
                 downloadedBytes = finalTaskSize,
                 totalBytes = finalTaskSize,
-                speedText = "완료",
+                speedText = AppStrings.get(R.string.dl_done),
                 isCompleted = true
             )
         }
@@ -403,9 +407,9 @@ class ModelDownloader(client: OkHttpClient? = null) {
                 progress = 1.0f,
                 downloadedBytes = bundleDownloadedBytes,
                 totalBytes = bundleDownloadedBytes,
-                speedText = "완료",
+                speedText = AppStrings.get(R.string.dl_done),
                 etaSeconds = 0,
-                activeComponentName = "다운로드 완료",
+                activeComponentName = AppStrings.get(R.string.dl_all_done),
                 mainProgress = 1.0f,
                 visionProgress = if (visionFile != null) 1.0f else 0f,
                 mtpProgress = if (mtpFile != null) 1.0f else 0f,
@@ -451,7 +455,7 @@ class ModelDownloader(client: OkHttpClient? = null) {
         try {
             val rangeReq = withHfAuth(
                 Request.Builder()
-                    .url(initialUrl)
+                    .url(HfSource.rewrite(initialUrl))
                     .header("User-Agent", USER_AGENT)
                     .header("Range", "bytes=0-0"),
                 initialUrl,
@@ -462,9 +466,9 @@ class ModelDownloader(client: OkHttpClient? = null) {
                 resolvedUrl = resp.request.url.toString()
                 if (resp.code == 401 || resp.code == 403) {
                     isAuthError = true
-                    errorReason = "Hugging Face 인증 필요 (${resp.code}). 설정에서 유효한 HF 토큰을 입력해 주세요."
+                    errorReason = AppStrings.get(R.string.dl_probe_401, resp.code)
                 } else if (resp.code == 404) {
-                    errorReason = "모델 파일을 찾을 수 없습니다 (404 Not Found). 다운로드 링크를 확인하세요."
+                    errorReason = AppStrings.get(R.string.dl_probe_404)
                 } else if (resp.code == 206) {
                     val range = parseContentRange(resp.header("Content-Range"))
                     if (range != null && range.start == 0L && range.end == 0L) {
@@ -489,7 +493,7 @@ class ModelDownloader(client: OkHttpClient? = null) {
             try {
                 val headReq = withHfAuth(
                     Request.Builder()
-                        .url(resolvedUrl)
+                        .url(HfSource.rewrite(resolvedUrl))
                         .header("User-Agent", USER_AGENT)
                         .head(),
                     resolvedUrl,
@@ -500,7 +504,7 @@ class ModelDownloader(client: OkHttpClient? = null) {
                     resolvedUrl = resp.request.url.toString()
                     if (resp.code == 401 || resp.code == 403) {
                         isAuthError = true
-                        errorReason = "Hugging Face 인증 필요 (${resp.code}). 설정에서 유효한 HF 토큰을 입력해 주세요."
+                        errorReason = AppStrings.get(R.string.dl_probe_401, resp.code)
                     } else if (resp.isSuccessful) {
                         val cl = resp.header("Content-Length")?.toLongOrNull()
                         if (cl != null && cl > 1000L) totalBytes = cl
@@ -528,7 +532,7 @@ class ModelDownloader(client: OkHttpClient? = null) {
     ): Boolean {
         val probe = probeUrl(url, fallbackSize, token)
         if (probe.authError || probe.errorMsg != null) {
-            val err = probe.errorMsg ?: "다운로드 인증 실패"
+            val err = probe.errorMsg ?: AppStrings.get(R.string.dl_auth_fail)
             Log.e(tag, "[$taskTitle] Probe failed: $err")
             onError(err)
             return false
@@ -649,7 +653,7 @@ class ModelDownloader(client: OkHttpClient? = null) {
                             try {
                                 val req = withHfAuth(
                                     Request.Builder()
-                                        .url(url)
+                                        .url(HfSource.rewrite(url))
                                         .header("User-Agent", USER_AGENT)
                                         .header("Range", "bytes=$reqStart-$reqEnd"),
                                     url,
@@ -726,13 +730,13 @@ class ModelDownloader(client: OkHttpClient? = null) {
                 return true
             } else {
                 downloadFailed = true
-                failureReason = "일부 분할 청크 다운로드 불완전"
+                failureReason = AppStrings.get(R.string.dl_chunk_incomplete)
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             downloadFailed = true
-            failureReason = e.localizedMessage ?: "분할 다운로드 네트워크 실패"
+            failureReason = e.localizedMessage ?: AppStrings.get(R.string.dl_net_fail)
             Log.w(tag, "[$taskTitle] Segmented download error: $failureReason", e)
         }
 
@@ -783,7 +787,7 @@ class ModelDownloader(client: OkHttpClient? = null) {
         try {
             val req = withHfAuth(
                 Request.Builder()
-                    .url(url)
+                    .url(HfSource.rewrite(url))
                     .header("User-Agent", USER_AGENT),
                 url,
                 token
@@ -791,12 +795,12 @@ class ModelDownloader(client: OkHttpClient? = null) {
 
             return httpClient.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) {
-                    onError("HTTP 오류 ${resp.code}: ${resp.message}")
+                    onError(AppStrings.get(R.string.dl_http_err, resp.code, resp.message))
                     return false
                 }
 
                 val body = resp.body ?: run {
-                    onError("서버 응답 본문이 비어 있습니다.")
+                    onError(AppStrings.get(R.string.dl_empty_body))
                     return false
                 }
 
@@ -840,7 +844,7 @@ class ModelDownloader(client: OkHttpClient? = null) {
                 true
             }
         } catch (e: Exception) {
-            val err = "다운로드 실패: ${e.localizedMessage ?: e.message}"
+            val err = AppStrings.get(R.string.dl_fail_generic, e.localizedMessage ?: e.message)
             Log.e(tag, "[$taskTitle] Single stream download failed", e)
             onError(err)
             return false
