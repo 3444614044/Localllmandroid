@@ -97,7 +97,8 @@ class ChatCryptoTest {
             fail("변조된 암호문에 대해 SecurityException이 발생해야 합니다.")
         } catch (e: SecurityException) {
             // Expected
-            assertTrue(e.message?.contains("복호화 실패") == true || e.message?.contains("손상") == true)
+            // 消息已本地化（AppStrings），JVM 单测无资源；契约 = 篡改必抛异常
+            assertTrue(e.message != null)
         }
     }
 
