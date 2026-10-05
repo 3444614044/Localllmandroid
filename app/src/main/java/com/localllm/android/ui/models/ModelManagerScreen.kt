@@ -932,6 +932,7 @@ private fun FdmAddBundleDialog(
         hasEmbeddedDrafter: Boolean
     ) -> Unit
 ) {
+    val mmDefaultName = stringResource(R.string.mm_default_name)
     var modelNameInput by remember { mutableStateOf("") }
     var runtimeChoice by remember { mutableStateOf(ModelRuntimeType.LLAMA_CPP) }
     var mainUrlInput by remember { mutableStateOf("") }
@@ -999,7 +1000,7 @@ private fun FdmAddBundleDialog(
                     }
                     GOutlineButton(
                         onClick = {
-                            modelNameInput = stringResource(R.string.mm_default_name)
+                            modelNameInput = mmDefaultName
                             runtimeChoice = ModelRuntimeType.LITE_RT
                             mainUrlInput = "https://huggingface.co/lotapa/gemma3-1b-it-int4.litertlm/resolve/main/gemma3-1b-it-int4.litertlm"
                             customFileNameInput = "gemma3-1b-it-int4.litertlm"

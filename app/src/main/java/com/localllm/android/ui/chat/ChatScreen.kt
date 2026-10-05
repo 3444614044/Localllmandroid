@@ -640,11 +640,9 @@ private fun isEngineErrorStatus(status: String?): Boolean {
     if (status.contains("대체 실행") || status.contains("回退") || status.contains("替代") ||
         lower.contains("fallback")
     ) return false
-    val lower = status.lowercase()
     return lower.contains("error") || lower.contains("failed") || lower.contains("exception") ||
         status.contains("오류") || status.contains("실패") || status.contains("예외") ||
-        status.contains("错误") || status.contains("失败") || status.contains("异常") ||
-        lower.contains("error") || lower.contains("failed")
+        status.contains("错误") || status.contains("失败") || status.contains("异常")
 }
 
 @Composable
