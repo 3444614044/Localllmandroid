@@ -603,7 +603,8 @@ fun SettingsScreen(
                     val languages = listOf(
                         "system" to stringResource(R.string.settings_language_system),
                         "en" to stringResource(R.string.settings_language_en),
-                        "ko" to stringResource(R.string.settings_language_ko)
+                        "ko" to stringResource(R.string.settings_language_ko),
+                        "zh" to stringResource(R.string.settings_language_zh)
                     )
                     languages.forEach { (code, label) ->
                         GFilterChip(

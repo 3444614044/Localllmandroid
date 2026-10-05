@@ -48,6 +48,7 @@ class MainActivity : ComponentActivity() {
                 when (settings.languagePreference) {
                     "ko" -> Locale.KOREAN
                     "en" -> Locale.ENGLISH
+                    "zh" -> Locale.SIMPLIFIED_CHINESE
                     else -> Locale.getDefault()
                 }
             }

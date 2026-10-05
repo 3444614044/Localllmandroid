@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> | <strong>한국어</strong>
+  <a href="README.md">English</a> | <strong>한국어</strong> | <a href="README.zh-CN.md">中文</a>
 </p>
 
 <p align="center">
@@ -16,7 +16,7 @@
   <img src="https://img.shields.io/badge/Runtime-llama.cpp%20%7C%20LiteRT--LM-orange.svg" alt="Runtime" />
   <img src="https://img.shields.io/badge/API-Ollama%20%7C%20OpenAI%20Port%2011434-blueviolet.svg" alt="API" />
   <img src="https://img.shields.io/badge/MCP-Client%20Ready-1f8f8f.svg" alt="MCP" />
-  <img src="https://img.shields.io/badge/UI-EN%20%2F%20KO%20Switcher-ff69b4.svg" alt="Multilingual" />
+  <img src="https://img.shields.io/badge/UI-EN%20%2F%20KO%20%2F%20ZH%20Switcher-ff69b4.svg" alt="Multilingual" />
 </p>
 
 완전 오프라인 환경에서 동작하는 고성능 안드로이드 온디바이스 LLM(대형 언어 모델) 애플리케이션입니다. 외부 클라우드나 API 통신 없이, 기기의 CPU, GPU, NPU 하드웨어를 직접 활용하여 안전하게 인공지능 모델을 구동합니다. UI는 자체 개발 **글래스 디자인 시스템** 위에서 동작하며 설정에서 **영어/한국어 실시간 전환**이 가능하고, 채팅에서 도구 호출을 위해 네이티브 **MCP 클라이언트**를 지원합니다. 또한 자체 MoE 연구 엔진(**SDengine**)이 `:engine` 모듈로 오픈소스로 개발 중입니다.
@@ -121,8 +121,8 @@ Local LLM Android는 단일 엔진에 종속되지 않고, **llama.cpp**와 **Go
   - 네이티브 MCP 프로토콜 클라이언트를 탑재하여 세션별 격리 가드와 함께 온디바이스 채팅에서 도구 사용을 지원합니다.
 - **자체 글래스 디자인 시스템 (`ui/glass`)**:
   - Material3를 완전히 제거하고 자체 글래스 UI 툴킷(`GlassTheme`, `GButtons`, `GControls`, `GOverlays` 등)으로 모든 화면을 커버합니다.
-- **인앱 이중 언어 UI (영어 / 한국어)**:
-  - 설정에서 시스템 기본값 / English / 한국어를 앱 재시작 없이 즉시 실시간 전환합니다.
+- **인앱 다국어 UI (영어 / 한국어 / 중국어)**:
+  - 설정에서 시스템 기본값 / English / 한국어 / 中文을 앱 재시작 없이 즉시 실시간 전환합니다.
 - **안드로이드 인지 OOM 보호 가드**:
   - 모델 매핑 전 실제 필요 메모리(가중치 + KV 캐시 + 연산 버퍼)를 추정하여, OOM 킬로 밀려 들어가는 대신 컨텍스트 길이를 자동으로 낮춥니다.
   - 추론마다 in-flight 마커를 기록합니다. 다음 실행에서 마커가 남아 있으면 이전 프로세스가 추론 중 강제 종료된 것이므로 사고로 기록하고 다음 실행의 메모리 사용이 큰 설정을 자동으로 낮춥니다 (설정 화면에서 로그·사고 이력 확인 가능).

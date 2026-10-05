@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <strong>English</strong> | <a href="README.ko.md">한국어</a>
+  <strong>English</strong> | <a href="README.ko.md">한국어</a> | <a href="README.zh-CN.md">中文</a>
 </p>
 
 <p align="center">
@@ -17,10 +17,10 @@
   <img src="https://img.shields.io/badge/Runtime-llama.cpp%20%7C%20LiteRT--LM-orange.svg" alt="Runtime" />
   <img src="https://img.shields.io/badge/API-Ollama%20%7C%20OpenAI%20Port%2011434-blueviolet.svg" alt="API" />
   <img src="https://img.shields.io/badge/MCP-Client%20Ready-1f8f8f.svg" alt="MCP" />
-  <img src="https://img.shields.io/badge/UI-EN%20%2F%20KO%20Switcher-ff69b4.svg" alt="Multilingual" />
+  <img src="https://img.shields.io/badge/UI-EN%20%2F%20KO%20%2F%20ZH%20Switcher-ff69b4.svg" alt="Multilingual" />
 </p>
 
-**Local LLM Android** is a privacy-first, fully offline on-device Large Language Model (LLM) application and server for Android. Powered by a **hybrid dual-runtime architecture** combining **llama.cpp** and **Google LiteRT-LM**, it executes state-of-the-art AI models directly on your device's CPU, GPU, and NPU—without requiring internet connectivity or cloud servers. The UI runs on a first-party **glass design system** with instant **English/Korean switching**, chats can call tools through a native **MCP client**, and a first-party MoE research engine (**SDengine**) is being built in the open under the `:engine` module.
+**Local LLM Android** is a privacy-first, fully offline on-device Large Language Model (LLM) application and server for Android. Powered by a **hybrid dual-runtime architecture** combining **llama.cpp** and **Google LiteRT-LM**, it executes state-of-the-art AI models directly on your device's CPU, GPU, and NPU—without requiring internet connectivity or cloud servers. The UI runs on a first-party **glass design system** with instant **English/Korean/Chinese switching**, chats can call tools through a native **MCP client**, and a first-party MoE research engine (**SDengine**) is being built in the open under the `:engine` module.
 
 ---
 
@@ -121,8 +121,8 @@ Turn your Android phone or tablet into an autonomous, on-device AI server access
   - Native MCP protocol client with per-session isolation guards, enabling tool use in on-device chats.
 - **First-Party Glass Design System (`ui/glass`)**:
   - Material3 stripped out entirely; a custom glass UI toolkit (`GlassTheme`, `GButtons`, `GControls`, `GOverlays`...) covers every screen.
-- **In-App Bilingual UI (EN / KO)**:
-  - Instant real-time language switching (system default / English / 한국어) from Settings—no app restart required.
+- **In-App Multilingual UI (EN / KO / ZH)**:
+  - Instant real-time language switching (system default / English / 한국어 / 中文) from Settings—no app restart required.
 - **Out-of-Memory Protection (Android-aware)**:
   - Estimates the real footprint (weights + KV cache + compute buffers) before mapping a model and reduces the context window instead of walking into an OOM kill.
   - Writes an in-flight marker per generation: a marker found at startup means the previous process was killed mid-inference, which is recorded and lowers the memory-heavy settings for the next run (memory guard log + incidents in Settings).

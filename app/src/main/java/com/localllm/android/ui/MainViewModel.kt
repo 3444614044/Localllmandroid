@@ -1619,6 +1619,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val locale = when (pref) {
             "ko" -> Locale.KOREAN
             "en" -> Locale.ENGLISH
+            "zh" -> Locale.SIMPLIFIED_CHINESE
             else -> Locale.getDefault()
         }
         val config = Configuration(getApplication<Application>().resources.configuration).apply { setLocale(locale) }

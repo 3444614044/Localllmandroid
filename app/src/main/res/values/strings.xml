@@ -102,6 +102,7 @@
     <string name="settings_language_system">System Default</string>
     <string name="settings_language_en">English</string>
     <string name="settings_language_ko">한국어</string>
+    <string name="settings_language_zh">中文</string>
     <string name="settings_runtime_title">Inference Backend Runtime</string>
     <string name="settings_runtime_desc">Select inference engine runtime backend.</string>
     <string name="settings_performance_title">Performance &amp; Indexing Options</string>
